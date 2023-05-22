@@ -4,8 +4,6 @@ version="mycosnptx version 1.0"
 #date		   :20230512
 #usage		 :bash mycosnptx.sh <run_name>
 
-#mkdir $run_dir/output/$1
-echo "Running mycosnptx version %s" > $run_dir/output/$1/mycosnptx.log
 run_dir=$PWD/mycosnp-nf
 samplesheet_dir=$PWD/mycosnp-nf/samplesheet
 samplesheet=$run_name.csv
