@@ -37,7 +37,7 @@ echo "Running nextflow for run "$1 && /home/jessr/nextflow run mycosnp-nf/main.n
 done
 
 #Process QC report
-for data in QC_report
+for data in QC_report;
 do
 echo "Processing QC output and generating QC_report" && bash qc_report.sh $1
 done
