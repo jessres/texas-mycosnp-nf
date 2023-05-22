@@ -15,7 +15,7 @@ awk 'BEGIN {FS="\t"};\
  
 awk '(NR>1)' $run_dir/output/$1/$1"_QCREPORT.temp" > $run_dir/output/$1/$1"_QCREPORT2.temp" 
 
-echo "Sample_Name	Reads_Before_Trimming	GC_Before_Trimming	Average_Q_Score_Before_Trimming	Reference_Length_Coverage_Before_Trimming	Reads_After_Trimming	Paired_Reads_After_Trimming	Unpaired_Reads_After_Trimming	GC_After_Trimming	Average_Q_Score_After_Trimming	Reference_Length_Coverage_After_Trimming	Mean_Coverage_Depth	Reads_Mapped	Pass/Fail" | cat - $run_dir/output/$1/$1"_QCREPORT2.temp" > $run_dir/output/$1/$1"_QCREPORT.text"
+echo "Sample_Name	Reads_Before_Trimming	GC_Before_Trimming	Average_Q_Score_Before_Trimming	Reference_Length_Coverage_Before_Trimming	Reads_After_Trimming	Paired_Reads_After_Trimming	Unpaired_Reads_After_Trimming	GC_After_Trimming	Average_Q_Score_After_Trimming	Reference_Length_Coverage_After_Trimming	Mean_Coverage_Depth	Reads_Mapped	Pass/Fail" | cat - $run_dir/output/$1/$1"_QCREPORT2.temp" > $run_dir/output/$1/$1"_QCREPORT.txt"
 
 rm $run_dir/output/$1/$1"_QCREPORT.temp"
 rm $run_dir/output/$1/$1"_QCREPORT2.temp"
