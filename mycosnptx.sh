@@ -42,9 +42,20 @@ do
 echo "Processing QC output and generating QC_report" && bash qc_report.sh $1
 done
 
-#Compress and upload analysis results to AWS
+#Upload Analysis results to AWS 
 for results in combined;
 do
-echo "Compressing results and uploading to aws s3 bucket" && zip $run_dir/output/$1/$1".zip" $run_dir/output/$1/combined/phylogeny/fasttree/ $run_dir/output/$1/combined/phylogeny/rapidnj/ $run_dir/output/$1/combined/vcf-to-fasta/ $run_dir/output/$1/$1"_QCREPORT.txt" && sudo aws s3 cp $run_dir/output/$1/$1".zip" s3://804609861260-bioinformatics-infectious-disease/Candida/ANALYSIS_RESULT/ --region us-gov-west-1 && echo "Analysis Complete!"
+echo "Collect, compress and upload analysis results to aws s3 bucket" &&
+cp -r $run_dir/output/$1/combined/phylogeny/fasttree/ $run_dir/output/$1/ &&
+cp -r $run_dir/output/$1/combined/phylogeny/rapidnj/ $run_dir/output/$1/ &&
+cp -r $run_dir/output/$1/combined/vcf-to-fasta/ $run_dir/output/$1/ &&
+cd $run_dir/output/$1 &&
+zip -r $1".zip" fasttree rapidnj vcf-to-fasta $1"_QCREPORT.txt" &&
+sudo aws s3 cp $1".zip" s3://804609861260-bioinformatics-infectious-disease/Candida/ANALYSIS_RESULT/ --region us-gov-west-1 &&
+rm -r fasttree &&
+rm -r rapidnj &&
+rm -r vcf-to-fasta &&
+cd $run_dir &&
+echo "Analysis Complete!"
 done 
 
