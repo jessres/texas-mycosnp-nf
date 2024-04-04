@@ -2,7 +2,7 @@
 version="post mycosnptx version 1.0"
 #author		 :Jessica Respress
 #date		 :20231129
-#usage		 :bash post_mycosnptx.py <run_name>
+#usage		 :python post_mycosnptx.py <run_name>
 
 from fnmatch import fnmatch
 import glob
