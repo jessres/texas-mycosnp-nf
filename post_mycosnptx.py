@@ -19,26 +19,27 @@ def prep_SRA_submission(results, run_name):
     reads_dir = "/home/dnalab/Candida_auris/mycosnp-nf/reads/{}/".format(run_name)
     metadata = pd.read_csv("/home/dnalab/Candida_auris/templates/NCBI_SRA_metadata_template.csv", header=0, index_col=None)
     attribute = pd.read_csv("/home/dnalab/Candida_auris/templates/NCBI_biosample_attributes_template.csv", header=0, index_col=None)
-    results = pd.read_csv("/home/dnalab/Candida_auris/mycosnp-nf/output/{}/{}".format(run_name,results), sep="\t", header=0, index_col=False, dtype=str)
+    results = pd.read_csv("/bioinformatics/Candida_auris/mycosnp-nf/output/{}/{}".format(run_name,results), sep="\t", header=0, index_col=False, dtype=str)
     results.rename(columns=lambda x: x.strip(), inplace=True)
     results['Sample_Name'] = results['Sample_Name'].apply(lambda x: x.strip())
-    results['WGS_ID_TX'] = results['Sample_Name'].str.extract(r'(TX-DSHS-CAU-\d+)')
+    results['WGS_ID_TX'] = results['Sample_Name'].str.extract(r'(TX-DSHS-CAU-[A-Za-z0-9]+)')
     results['WGS_ID_CONC'] = results['Sample_Name'].str.extract(r'(CONC[A-Za-z0-9]+)')
     results['WGS_ID'] = results['WGS_ID_TX'].fillna(results['WGS_ID_CONC'])
     results.drop(columns=['WGS_ID_TX', 'WGS_ID_CONC'], inplace=True)    
-    out = "/home/dnalab/Candida_auris/mycosnp-nf/output/{}/".format(run_name)
-    SRA_fastq = "/home/dnalab/Candida_auris/mycosnp-nf/output/{}/SRA_fastq/".format(run_name)
+    out = "/bioinformatics/Candida_auris/mycosnp-nf/output/{}/".format(run_name)
+    SRA_fastq = "/bioinformatics/Candida_auris/mycosnp-nf/output/{}/SRA_fastq/".format(run_name)
     # Check if demo file exists
     
-    if my_glob("/home/dnalab/Candida_auris/mycosnp-nf/output/{}/*metadata.xlsx".format(run_name)):
+    if my_glob("/bioinformatics/Candida_auris/mycosnp-nf/output/{}/*metadata.xlsx".format(run_name)):
         try:
-            demofile = my_glob("/home/dnalab/Candida_auris/mycosnp-nf/output/{}/*metadata.xlsx".format(run_name))[0]
+            demofile = my_glob("/bioinformatics/Candida_auris/mycosnp-nf/output/{}/*metadata.xlsx".format(run_name))[0]
             demo = pd.read_excel(demofile, engine='openpyxl')
             #demo = demo.rename(columns={"WGS_ID": "Sample_Name"})
             demo.rename(columns=lambda x: x.strip(), inplace=True)            
             results = pd.merge(results, demo, left_on = "WGS_ID", right_on = "WGS_ID", how = "outer")
             results.fillna('missing', inplace=True)
-            #print(demo)
+            print("metadata working")
+            #print (results['IsolatDate'])
         finally:
     #Filter results df and remove controls and failed samples
           results.sort_values(by="Sample_Name", ascending=True, inplace=True, ignore_index=True)
@@ -80,7 +81,9 @@ def prep_SRA_submission(results, run_name):
               YMD = date.strftime("%Y-%m-%d")
               collection_dates.append(YMD)
               collection_date = pd.DataFrame(collection_dates, columns=['collection_dates'])
-            #print(YMD)
+          #print(collection_date)
+          #print(collection_dates)
+          #print(dates)
 #Collect fastq path          
           fastq_files = []
           for fastq in path_list:
@@ -123,7 +126,7 @@ def prep_SRA_submission(results, run_name):
           metadata.to_csv(out + run_name + "_SRA_metadata.csv",  index = False)
           
 #Fill in SRA_attribute template with samples to be submitted
-          new_row_attr = {"sample_name": results["sample_id"], "bioproject_accession": "PRJNA642852", "organism": "Candida auris", "collection_date": collection_date["collection_dates"], "geo_loc_name": "USA:Mountain", "host":"Homo sapiens", "host_disease":"not collected", "isolate": results["sample_id"], "isolation_source": results["sourceSite"], "latitude_and_longitude": "Not_collected"}
+          new_row_attr = {"sample_name": results["sample_id"],"bioproject_accession": "PRJNA642852","organism": "Candida auris","collection_date": collection_date["collection_dates"],"geo_loc_name": "USA:Mountain","host":"Homo sapiens","host_disease":"not collected","isolate": results["sample_id"],"isolation_source": results["sourceSite"],"latitude_and_longitude": "Not_collected"}
           new_row_attr = pd.DataFrame(new_row_attr)                      
           attribute = attribute.append(new_row_attr, ignore_index = True)
           attribute.to_csv(out + run_name + "_SRA_attribute.tsv", sep = "\t", index = False)    
