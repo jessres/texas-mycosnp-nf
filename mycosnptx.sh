@@ -1,110 +1,108 @@
 #!/bin/bash
-version="mycosnptx version 1.0"
+version="mycosnptx version 1.01"
 #author		 :Jessica Respress
-#date		 :20230512
+#date		 :2024/03/05
 #usage		 :bash mycosnptx.sh <run_name>
 
+run_name="$1"
 work_dir=/home/dnalab/Candida_auris
-run_dir=$PWD/mycosnp-nf
-samplesheet_dir=$PWD/mycosnp-nf/samplesheet
-samplesheet=$run_name.csv
-run_name=$1
-prefix=/home/dnalab/Candida_auris/mycosnp-nf/output/$1
+run_dir=${PWD}/mycosnp-nf
+samplesheet_dir=${PWD}/mycosnp-nf/samplesheet
+samplesheet=${run_name}.csv
+prefix=/bioinformatics/Candida_auris/mycosnp-nf/output/${run_name}
+sra_file=${samplesheet_dir}
 
 mkdir $run_dir/output
-mkdir $run_dir/output/$1
-mkdir $run_dir/output/$1/bam
+mkdir $run_dir/output/${run_name}
+#mkdir $run_dir/output/$1/bam
 mkdir $run_dir/reads/zip
-mkdir $run_dir/reads/$1
+mkdir $run_dir/reads/${run_name}
 mkdir $run_dir/samplesheet
-echo "Running "$version > $run_dir/output/$1/mycosnptx.log
+echo "Running "$version > ${prefix}/${run_name}_mycosnptx.log
 
-for run_name in analysis;
-do
+main () {
 #pull fastq files from aws to $PWD/mycosnp-nf/fastq/RAW_RUNS	
-echo "Pulling fastq from aws s3 bucket for "$1 && sudo aws s3 cp s3://804609861260-bioinformatics-infectious-disease/Candida/RAW_RUNS/"$1".zip $run_dir/reads/zip  --region us-gov-west-1 &&
-echo "Unzip "$1.zip &&
-unzip -j $run_dir/reads/zip/$1.zip -d $run_dir/reads/$1 &&
-echo "done unzip "$1.zip &&
-echo "copy controls"
-aws s3 cp s3://804609861260-bioinformatics-infectious-disease/Candida/ref/controls/ $run_dir/reads/$1/ --region us-gov-west-1 --recursive --profile Bacteria_wgs_user &&
-echo "done copy controls" 
-done
+  echo "Pulling fastq from aws s3 bucket for "${run_name}
+  aws s3 cp s3://804609861260-bioinformatics-infectious-disease/Candida/RAW_RUNS/${run_name}.zip ${run_dir}/reads/zip  --region us-gov-west-1
+  echo "Unzip "${run_name}.zip
+  unzip -j ${run_dir}/reads/zip/${run_name}.zip -d ${run_dir}/reads/${run_name}
+  echo "done unzip "${run_name}.zip
+  echo "copy controls"
+  aws s3 cp s3://804609861260-bioinformatics-infectious-disease/Candida/ref/controls/ $run_dir/reads/${run_name}/ --region us-gov-west-1 --recursive --profile Bacteria_wgs_user &
+  pd_aws_download=$!
+  echo "done copy controls" 
 
 #generate sample sheet
-#for samplesheet in samplesheet_dir;
-#do
-#mkdir $run_dir/samplesheet &&
-#echo "Processing run for "$1 && bash mycosnp-nf/bin/mycosnp_full_samplesheet.sh $run_dir/reads/$1 > $samplesheet_dir/$1.csv && echo "Samplesheet generated for "$1 && 
-#sudo rm $run_dir/reads/zip/$1.zip
-#done
-echo "Processing run for "$1 && bash mycosnp-nf/bin/mycosnp_full_samplesheet.sh $run_dir/reads/$1 > $samplesheet_dir/$1.csv && 
-echo "Samplesheet generated for "$1 &&
-sudo rm $run_dir/reads/zip/$1.zip
-#done
+  wait ${pd_download}
+  if [ -d ${run_dir}/reads/${run_name} ]; then
+    echo "Processing run for "${run_name}
+    bash mycosnp-nf/bin/mycosnp_full_samplesheet.sh ${run_dir}/reads/${run_name} > ${samplesheet_dir}/${run_name}.csv &
+    pd_samplesheet=$!
+    wait ${pd_samplesheet}
+    echo "Samplesheet generated for "${run_name}
+    rm ${run_dir}/reads/zip/${run_name}.zip &
+    pd_delete=$!
+  else 
+    echo "Failed to generate samplesheet."
+    exit 1
+  fi
 
 #Run Nextflow 
-for samplesheet in samplesheet_dir;
-do
-echo "Running nextflow for run "$1 && nextflow run mycosnp-nf/main.nf -profile singularity --input /$samplesheet_dir/$1.csv --fasta $run_dir/ref/GCA_016772135.1_ASM1677213v1_genomic.fna --outdir $prefix
-done
+  wait ${pd_delete}
+  if [ $? -eq 0 ] && [ -e "${samplesheet_dir}/${run_name}.csv" ]; then
+    echo "Running nextflow for run "${run_name}
+    (nextflow run mycosnp-nf/main.nf -profile singularity --input ${samplesheet_dir}/${run_name}.csv --fasta ${run_dir}/ref/GCA_016772135.1_ASM1677213v1_genomic.fna --outdir ${prefix}) &
+    pd_mycosnp=$!
+  else
+    echo "MycoSNP failed to run"
+    exit 1
+  fi
 
 #Process QC report
-for data in QC_report;
-do
-echo "Processing QC output and generating QC_report" && bash qc_report.sh $1 && echo "Merging qc_report with KEY" && cp /home/dnalab/Candida_auris/mycosnp-nf/reads/$1/"$1"_metadata.xlxs $prefix && python qc_report.py $1
-done
+  wait ${pd_mycosnp}
+  if [ -e "${prefix}/stats/qc_report/qc_report.txt" ]; then 
+    echo "Processing QC output and generating QC_report"
+    bash /home/dnalab/Candida_auris/scripts/qc_report.sh ${run_name} &
+    pd_qc=$!
+    wait ${pd_qc}
+    echo "Merging qc_report with KEY"
+    cp /home/dnalab/Candida_auris/mycosnp-nf/reads/${run_name}/${run_name}_metadata.xlxs ${prefix}
+    python /home/dnalab/Candida_auris/scripts/qc_report.py ${run_name} &
+    pd_qc2=$!
+  else 
+    echo "Unable to locate qc_report.txt"
+    exit 1
+  fi
 
-#Run Kraken 2
-#for sequences in run;
-#do 
-#echo "Preparing samples for Kraken2 analysis" &&
-#mkdir $run_dir/output/kraken2_output &&
-#mkdir $run_dir/output/kraken1_format &&
-#ls -U $run_dir/output/$1/samples > $prefix/sample_name.txt && 
-#collecting sample names to run kraken
-#cd $prefix &&
-#python $work_dir/kraken2_CA.py > /$prefix/"kraken1.tmp" &&
-#cat kraken1.tmp | tr -d '[]' | tr -d \' | tr -d \, | tr " " "\n" > $prefix/kraken2.tmp &&
-#awk -v prefix="$prefix" '{print prefix $0};' $prefix/kraken2.tmp > $prefix/kraken2.txt && 
-#rm $prefix/kraken1.tmp &&
-#rm $prefix/kraken2.tmp &&
-#python $work_dir/run_kraken2.py &&
-#python $work_dir/kraken1_format.py &&
-#python $work_dir/Kraken2-output-manipulation/kraken-multiple-taxa.py -d $run_dir/output/kraken1_format/ -r S -c 6 -o $prefix/kraken2_multiply &&
-#sed -e "s/\[//g;s/\]//g;s/'//g;s|\t|,|g" $prefix/kraken2_multiply > $prefix/kraken_report_all_table.csv
-#done
+#Upload QC results to AWS
+  wait ${pd_qc2}
+  if [ $? -eq 0 ] && [ -e "${prefix}/combined/phylogeny/fasttree/" ] && [ -e "${prefix}/combined/phylogeny/rapidnj/" ] && [ -e "${prefix}/combined/vcf-to-fasta/" ]; then
+    echo "Collect, compress and upload analysis results to aws s3 bucket"
+    cp -r ${prefix}/combined/phylogeny/fasttree/ ${prefix}/ 
+    cp -r ${prefix}/combined/phylogeny/rapidnj/ ${prefix}/ 
+    cp -r ${prefix}/combined/vcf-to-fasta/ ${prefix}/
+    zip -r ${run_dir}/output/${run_name}".zip" ${run_dir}/output/${run_name}
+    aws s3 cp ${run_dir}/output/${run_name}".zip" s3://804609861260-bioinformatics-infectious-disease/Candida/ANALYSIS_RESULT/ --region us-gov-west-1  --profile Bacteria_wgs_user &
+    pd_aws=$!
+    wait ${pd_aws}
+    sudo rm -r ${work_dir}/work
+    mkdir ${work_dir}/work
+    echo "Output uploaded to aws!"
+  else
+    echo "Ouput files to upload not found."
+    exit 1
+  fi 
 
-
-#Copy .bam files for aws s3 upload
-#for bam in samples;
-#do
-#echo "Prepare analysis results for SRA submission and upload to aws" &&
-#cp $run_dir/output/$1/samples/*/finalbam/* $run_dir/output/$1/bam &&
-#zip -jr $1".zip" /home/jessr/mycosnp-nf/output/CA_230519_M06018/bam/ &&
-#sudo aws s3 cp $run_dir/output/$1/bam/$1".zip" s3://804609861260-bioinformatics-infectious-disease/Candida/ANALYSIS_RESULT/ --region us-gov-west-1
-#done
-
-#Upload QC results to AWS 
-for results in combined;
-do
-echo "Collect, compress and upload analysis results to aws s3 bucket" &&
-cp -r $prefix/combined/phylogeny/fasttree/ $prefix/ &&
-cp -r $prefix/combined/phylogeny/rapidnj/ $prefix/ &&
-cp -r $prefix/combined/vcf-to-fasta/ $prefix/ &&
-#cp -r $run_dir/output/kraken2_output $prefix/ &&
-#cp $run_dir/output/kraken2_report.txt $run_dir/output/$1/ &&
-#sudo rm -r $run_dir/output/kraken2_output &&
-#sudo rm -r $run_dir/output/kraken1_format &&
-#sudo rm cp $run_dir/output/kraken2_report.txt &&
-#cd $prefix &&
-#zip -r $1".zip" fasttree rapidnj vcf-to-fasta $1"_QCREPORT.txt" kraken_report_all_table.csv &&
-zip -r $run_dir/output/$1".zip" $run_dir/output/$1 &&
-sudo aws s3 cp $run_dir/output/$1".zip" s3://804609861260-bioinformatics-infectious-disease/Candida/ANALYSIS_RESULT/ --region us-gov-west-1  --profile Bacteria_wgs_user &&
-#rm -r fasttree &&
-#rm -r rapidnj &&
-#rm -r vcf-to-fasta &&
-sudo rm -r $work_dir/work &&
-mkdir $work_dir/work &&
-echo "Analysis Complete!"
-done 
+#Run script to set up NCBI submission 
+  wait ${pd_aws}
+  if [ $? -eq 0 ] && [ -e "${run_dir}/output/${run_name}/${run_name}_QC_REPORT.txt" ]; then
+    echo "Preparing fastq files and metadata file for SRA submission."
+    python /home/dnalab/Candida_auris/post_mycosnptx.py ${run_name} 
+  else 
+    echo "NCBI prep failed."
+    exit 1
+  fi
+}
+(main 2>&1 | tee "${run_name}_mycosnptx.log") & disown 
+sleep 2
+echo "Function is running in background."
